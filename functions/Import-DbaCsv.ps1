@@ -415,12 +415,12 @@ function Import-DbaCsv {
                     Stop-Function -Message "Failure" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
                 }
 
-                if ($PSCmdlet.ShouldProcess($instance, "Starting transaction in $Database")) {
+                if ($PSCmdlet.ShouldProcess($instance, "Starting transaction in $Database") -and -not $NoTransaction) {
                     # Everything will be contained within 1 transaction, even creating a new table if required
                     # and truncating the table, if specified.
                     $transaction = $sqlconn.BeginTransaction()
                 }
-                $transaction = $null
+
                 # Ensure database exists
                 $sql = "select count(*) from master.dbo.sysdatabases where name = '$Database'"
                 if (-not $NoTransaction) {
@@ -633,7 +633,9 @@ function Import-DbaCsv {
                 if ($PSCmdlet.ShouldProcess($instance, "Committing transaction")) {
                     if ($completed) {
                         # "Note: This count does not take into consideration the number of rows actually inserted when Ignore Duplicates is set to ON."
-                        #$null = $transaction.Commit()
+                        if (-not $NoTransaction) {
+                            $null = $transaction.Commit()
+                        }
                         if ($script:core) {
                             $rowscopied = "Unsupported in Core"
                             $rps = $null
