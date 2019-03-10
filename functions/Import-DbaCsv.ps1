@@ -145,6 +145,9 @@ function Import-DbaCsv {
     .PARAMETER UseColumnDefault
         Use the column default values if the field is not in the record.
 
+    .PARAMETER NoTransaction
+        Do not use a transaction for the import. This can help with log growth.
+
     .PARAMETER WhatIf
         Shows what would happen if the command were to run. No actions are actually performed.
 
@@ -257,6 +260,7 @@ function Import-DbaCsv {
         [switch]$SkipEmptyLine,
         [switch]$SupportsMultiline,
         [switch]$UseColumnDefault,
+        [switch]$NoTransaction,
         [switch]$EnableException
     )
     begin {
@@ -318,7 +322,12 @@ function Import-DbaCsv {
             }
 
             $sql = "BEGIN CREATE TABLE [$schema].[$table] ($($sqldatatypes -join ' NULL,')) END"
-            $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+
+            if (-not $NoTransaction) {
+                $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+            } else {
+                $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn)
+            }
 
             try {
                 $null = $sqlcmd.ExecuteNonQuery()
@@ -411,10 +420,14 @@ function Import-DbaCsv {
                     # and truncating the table, if specified.
                     $transaction = $sqlconn.BeginTransaction()
                 }
-
+                $transaction = $null
                 # Ensure database exists
                 $sql = "select count(*) from master.dbo.sysdatabases where name = '$Database'"
-                $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+                if (-not $NoTransaction) {
+                    $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+                } else {
+                    $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn)
+                }
                 if (($sqlcmd.ExecuteScalar()) -eq 0) {
                     Stop-Function -Continue -Message "Database does not exist on $instance"
                 }
@@ -423,7 +436,11 @@ function Import-DbaCsv {
 
                 # Ensure Schema exists
                 $sql = "select count(*) from $Database.sys.schemas where name='$schema'"
-                $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+                if (-not $NoTransaction) {
+                    $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+                } else {
+                    $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn)
+                }
 
                 # If Schema doesn't exist create it
                 # Defaulting to dbo.
@@ -433,7 +450,11 @@ function Import-DbaCsv {
                     }
                     $sql = "CREATE SCHEMA [$schema] AUTHORIZATION dbo"
                     if ($PSCmdlet.ShouldProcess($instance, "Creating schema $schema")) {
-                        $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+                        if (-not $NoTransaction) {
+                            $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+                        } else {
+                            $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn)
+                        }
                         try {
                             $null = $sqlcmd.ExecuteNonQuery()
                         } catch {
@@ -444,10 +465,18 @@ function Import-DbaCsv {
 
                 # Ensure table or view exists
                 $sql = "select count(*) from $Database.sys.tables where name = '$table' and schema_id=schema_id('$schema')"
-                $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+                if (-not $NoTransaction) {
+                    $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+                } else {
+                    $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn)
+                }
 
                 $sql2 = "select count(*) from $Database.sys.views where name = '$table' and schema_id=schema_id('$schema')"
-                $sqlcmd2 = New-Object System.Data.SqlClient.SqlCommand($sql2, $sqlconn, $transaction)
+                if (-not $NoTransaction) {
+                    $sqlcmd2 = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+                } else {
+                    $sqlcmd2 = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn)
+                }
 
                 # Create the table if required. Remember, this will occur within a transaction, so if the script fails, the
                 # new table will no longer exist.
@@ -472,7 +501,11 @@ function Import-DbaCsv {
                 if ($Truncate) {
                     $sql = "TRUNCATE TABLE [$schema].[$table]"
                     if ($PSCmdlet.ShouldProcess($instance, "Performing TRUNCATE TABLE [$schema].[$table] on $Database")) {
-                        $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+                        if (-not $NoTransaction) {
+                            $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn, $transaction)
+                        } else {
+                            $sqlcmd = New-Object System.Data.SqlClient.SqlCommand($sql, $sqlconn)
+                        }
                         try {
                             $null = $sqlcmd.ExecuteNonQuery()
                         } catch {
@@ -498,9 +531,17 @@ function Import-DbaCsv {
                     try {
                         # Create SqlBulkCopy using default options, or options specified in command line.
                         if ($bulkCopyOptions) {
-                            $bulkcopy = New-Object Data.SqlClient.SqlBulkCopy($sqlconn, $bulkCopyOptions, $transaction)
+                            if (-not $NoTransaction) {
+                                $bulkcopy = New-Object Data.SqlClient.SqlBulkCopy($sqlconn, $bulkCopyOptions, $transaction)
+                            } else {
+                                $bulkcopy = New-Object Data.SqlClient.SqlBulkCopy($sqlconn, $bulkCopyOptions)
+                            }
                         } else {
-                            $bulkcopy = New-Object Data.SqlClient.SqlBulkCopy($sqlconn, ([System.Data.SqlClient.SqlBulkCopyOptions]::Default), $transaction)
+                            if (-not $NoTransaction) {
+                                $bulkcopy = New-Object Data.SqlClient.SqlBulkCopy($sqlconn, ([System.Data.SqlClient.SqlBulkCopyOptions]::Default), $transaction)
+                            } else {
+                                $bulkcopy = New-Object Data.SqlClient.SqlBulkCopy($sqlconn, ([System.Data.SqlClient.SqlBulkCopyOptions]::Default))
+                            }
                         }
 
                         $bulkcopy.DestinationTableName = "[$schema].[$table]"
@@ -592,11 +633,13 @@ function Import-DbaCsv {
                 if ($PSCmdlet.ShouldProcess($instance, "Committing transaction")) {
                     if ($completed) {
                         # "Note: This count does not take into consideration the number of rows actually inserted when Ignore Duplicates is set to ON."
-                        $null = $transaction.Commit()
+                        #$null = $transaction.Commit()
                         if ($script:core) {
                             $rowscopied = "Unsupported in Core"
+                            $rps = $null
                         } else {
                             $rowscopied = [System.Data.SqlClient.SqlBulkCopyExtension]::RowsCopiedCount($bulkcopy)
+                            $rps = [int]($rowscopied / $elapsed.Elapsed.TotalSeconds)
                         }
 
                         Write-Message -Level Verbose -Message "$rowscopied total rows copied"
@@ -610,7 +653,7 @@ function Import-DbaCsv {
                             Schema        = $schema
                             RowsCopied    = $rowscopied
                             Elapsed       = [prettytimespan]$elapsed.Elapsed
-                            RowsPerSecond = [int]($rowscopied / $elapsed.Elapsed.TotalSeconds)
+                            RowsPerSecond = $rps
                             Path          = $file
                         }
                     } else {
