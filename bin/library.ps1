@@ -48,9 +48,9 @@ if (([System.Management.Automation.PSTypeName]'Sqlcollaborative.Dbatools.Configu
 $libraryBase = (Resolve-PathFast -Path ($ExecutionContext.SessionState.Module.ModuleBase + "\bin"))
 
 if ($PSVersionTable.PSVersion.Major -ge 6) {
-    $dll = (Resolve-PathFast -Path "$libraryBase\netcoreapp2.1\dbatools.dll" -ErrorAction Ignore).ProviderPath
+    $dll = (Resolve-Path -Path "$libraryBase\netcoreapp2.1\dbatools.dll" -ErrorAction Ignore).ProviderPath
 } else {
-    $dll = (Resolve-PathFast -Path "$libraryBase\net452\dbatools.dll" -ErrorAction Ignore).ProviderPath
+    $dll = (Resolve-Path -Path "$libraryBase\net452\dbatools.dll" -ErrorAction Ignore).ProviderPath
 }
 
 if ($ImportLibrary) {

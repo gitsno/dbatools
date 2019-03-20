@@ -35,7 +35,7 @@ function Import-ModuleFile {
     )
 
     if ($script:doDotSource) {
-        . (Resolve-Path -Path $Path)
+        . (Resolve-PathFast -Path $Path)
     } else {
         $ExecutionContext.InvokeCommand.InvokeScript($false, ([scriptblock]::Create([io.file]::ReadAllText((Resolve-Path -Path $Path).ProviderPath))), $null, $null)
     }
@@ -86,7 +86,7 @@ function Add-TypeFast {
 function Resolve-PathFast {
     [cmdletbinding()]
     param($Path)
-    $ExecutionContext.SessionState.Path.GetResolvedPSPathFromPSPath($Path)
+    ($ExecutionContext.SessionState.Path.GetResolvedPSPathFromPSPath($Path)).Path.ToString()
 }
 
 Write-ImportTime -Text "Start" -Timestamp $start
@@ -94,7 +94,7 @@ Write-ImportTime -Text "Loading import helper functions"
 #endregion Import helper functions
 
 # Not supporting the provider path at this time 2/28/2017
-if (((Resolve-Path .\).Path).StartsWith("SQLSERVER:\")) {
+if (((Resolve-PathFast .\)).StartsWith("SQLSERVER:\")) {
     Write-Warning "SQLSERVER:\ provider not supported. Please change to another directory and reload the module."
     Write-Warning "Going to continue loading anyway, but expect issues."
 }
@@ -155,7 +155,7 @@ Write-ImportTime -Text "Validated defines"
 #endregion Import Defines
 
 if (($PSVersionTable.PSVersion.Major -le 5) -or $script:isWindows) {
-    Get-ChildItem -Path (Resolve-Path "$script:PSModuleRoot\bin\") -Filter "*.dll" -Recurse | Unblock-File -ErrorAction Ignore
+    Get-ChildItem -Path (Resolve-PathFast "$script:PSModuleRoot\bin\") -Filter "*.dll" -Recurse | Unblock-File -ErrorAction Ignore
     Write-ImportTime -Text "Unblocking Files"
 }
 
@@ -165,11 +165,11 @@ $script:DllRoot = (Resolve-Path -Path "$script:PSModuleRoot\bin\").ProviderPath
 <#
 # Removed this because it doesn't seem to work well xplat and on win7 and it doesn't provide enough value
 # Define folder in which to copy dll files before importing
-if (-not $script:copyDllMode) { $script:DllRoot = (Resolve-Path "$script:PSModuleRoot\bin\") }
+if (-not $script:copyDllMode) { $script:DllRoot = (Resolve-PathFast "$script:PSModuleRoot\bin\") }
 else {
-    $libraryTempPath = (Resolve-Path "$($env:TEMP)\dbatools-$(Get-Random -Minimum 1000000 -Maximum 9999999)")
+    $libraryTempPath = (Resolve-PathFast "$($env:TEMP)\dbatools-$(Get-Random -Minimum 1000000 -Maximum 9999999)")
     while (Test-Path -Path $libraryTempPath) {
-        $libraryTempPath = (Resolve-Path "$($env:TEMP)\dbatools-$(Get-Random -Minimum 1000000 -Maximum 9999999)")
+        $libraryTempPath = (Resolve-PathFast "$($env:TEMP)\dbatools-$(Get-Random -Minimum 1000000 -Maximum 9999999)")
     }
     $script:DllRoot = $libraryTempPath
     $null = New-Item -Path $libraryTempPath -ItemType Directory
@@ -201,25 +201,25 @@ Write-ImportTime -Text "Loading dbatools library"
 
 if ($script:multiFileImport) {
     # All internal functions privately available within the toolset
-    foreach ($function in (Get-ChildItem -Path (Resolve-Path -Path "$script:PSModuleRoot\internal\functions\") -Recurse | Where-Object Extension -EQ '.ps1')) {
+    foreach ($function in (Get-ChildItem -Path (Resolve-PathFast -Path "$script:PSModuleRoot\internal\functions\") -Recurse | Where-Object Extension -EQ '.ps1')) {
         . Import-ModuleFile $function.FullName
     }
     Write-ImportTime -Text "Loading Internal Commands"
 
-    . Import-ModuleFile -Path (Resolve-Path -Path "$script:PSModuleRoot\internal\scripts\cmdlets.ps1")
+    . Import-ModuleFile -Path (Resolve-PathFast -Path "$script:PSModuleRoot\internal\scripts\cmdlets.ps1")
     Write-ImportTime -Text "Registering cmdlets"
 
     # All exported functions
-    foreach ($function in (Get-ChildItem -Path (Resolve-Path -Path "$script:PSModuleRoot\functions\") -Recurse | Where-Object Extension -EQ '.ps1')) {
+    foreach ($function in (Get-ChildItem -Path (Resolve-PathFast -Path "$script:PSModuleRoot\functions\") -Recurse | Where-Object Extension -EQ '.ps1')) {
         . Import-ModuleFile $function.FullName
     }
     Write-ImportTime -Text "Loading Public Commands"
 
 } else {
-    . (Resolve-Path -Path "$script:PSModuleRoot\allcommands.ps1")
+    . (Resolve-PathFast -Path "$script:PSModuleRoot\allcommands.ps1")
     Write-ImportTime -Text "Loading Public and Private Commands"
 
-    . Import-ModuleFile (Resolve-Path -Path "$script:PSModuleRoot\internal\scripts\cmdlets.ps1")
+    . Import-ModuleFile (Resolve-PathFast -Path "$script:PSModuleRoot\internal\scripts\cmdlets.ps1")
     Write-ImportTime -Text "Registering cmdlets"
 }
 
@@ -238,33 +238,33 @@ if (-not ([Sqlcollaborative.Dbatools.Message.LogHost]::LoggingPath)) {
 # Note: Each optional file must include a conditional governing whether it's run at all.
 # Validations were moved into the other files, in order to prevent having to update dbatools.psm1 every time
 # 96ms
-foreach ($function in (Get-ChildItem -Path (Resolve-Path -Path "$script:PSModuleRoot\optional\*.ps1"))) {
+foreach ($function in (Get-ChildItem -Path (Resolve-PathFast -Path "$script:PSModuleRoot\optional\*.ps1"))) {
     . Import-ModuleFile $function.FullName
 }
 Write-ImportTime -Text "Loading Optional Commands"
 
 # Process TEPP parameters
-. Import-ModuleFile -Path (Resolve-Path -Path "$script:PSModuleRoot\internal\scripts\insertTepp.ps1")
+. Import-ModuleFile -Path (Resolve-PathFast -Path "$script:PSModuleRoot\internal\scripts\insertTepp.ps1")
 Write-ImportTime -Text "Loading TEPP"
 
 
 # Process transforms
-. Import-ModuleFile -Path (Resolve-Path -Path "$script:PSModuleRoot\internal\scripts\message-transforms.ps1")
+. Import-ModuleFile -Path (Resolve-PathFast -Path "$script:PSModuleRoot\internal\scripts\message-transforms.ps1")
 Write-ImportTime -Text "Loading Message Transforms"
 
 # Load scripts that must be individually run at the end #
 #-------------------------------------------------------#
 
 # Start the logging system (requires the configuration system up and running)
-. Import-ModuleFile -Path (Resolve-Path -Path "$script:PSModuleRoot\internal\scripts\logfilescript.ps1")
+. Import-ModuleFile -Path (Resolve-PathFast -Path "$script:PSModuleRoot\internal\scripts\logfilescript.ps1")
 Write-ImportTime -Text "Script: Logging"
 
 # Start the tepp asynchronous update system (requires the configuration system up and running)
-. Import-ModuleFile -Path (Resolve-Path -Path "$script:PSModuleRoot\internal\scripts\updateTeppAsync.ps1")
+. Import-ModuleFile -Path (Resolve-PathFast -Path "$script:PSModuleRoot\internal\scripts\updateTeppAsync.ps1")
 Write-ImportTime -Text "Script: Asynchronous TEPP Cache"
 
 # Start the maintenance system (requires pretty much everything else already up and running)
-. Import-ModuleFile -Path (Resolve-Path -Path "$script:PSModuleRoot\internal\scripts\dbatools-maintenance.ps1")
+. Import-ModuleFile -Path (Resolve-PathFast -Path "$script:PSModuleRoot\internal\scripts\dbatools-maintenance.ps1")
 Write-ImportTime -Text "Script: Maintenance"
 
 #region Aliases
@@ -1666,7 +1666,7 @@ if ($script:smoRunspace) {
 Write-ImportTime -Text "Waiting for runspaces to finish"
 
 if ($PSCommandPath -like "*.psm1") {
-    Update-TypeData -AppendPath (Resolve-Path -Path "$script:PSModuleRoot\xml\dbatools.Types.ps1xml")
+    Update-TypeData -AppendPath (Resolve-PathFast -Path "$script:PSModuleRoot\xml\dbatools.Types.ps1xml")
     Write-ImportTime -Text "Loaded type extensions"
 }
 #. Import-ModuleFile "$script:PSModuleRoot\bin\type-extensions.ps1"
