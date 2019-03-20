@@ -45,12 +45,12 @@ if (([System.Management.Automation.PSTypeName]'Sqlcollaborative.Dbatools.Configu
 }
 #endregion Test whether the module had already been imported
 
-$libraryBase = (Resolve-Path -Path ($ExecutionContext.SessionState.Module.ModuleBase + "\bin"))
+$libraryBase = (Resolve-PathFast -Path ($ExecutionContext.SessionState.Module.ModuleBase + "\bin"))
 
 if ($PSVersionTable.PSVersion.Major -ge 6) {
-    $dll = (Resolve-Path -Path "$libraryBase\netcoreapp2.1\dbatools.dll" -ErrorAction Ignore).ProviderPath
+    $dll = (Resolve-PathFast -Path "$libraryBase\netcoreapp2.1\dbatools.dll" -ErrorAction Ignore).ProviderPath
 } else {
-    $dll = (Resolve-Path -Path "$libraryBase\net452\dbatools.dll" -ErrorAction Ignore).ProviderPath
+    $dll = (Resolve-PathFast -Path "$libraryBase\net452\dbatools.dll" -ErrorAction Ignore).ProviderPath
 }
 
 if ($ImportLibrary) {
@@ -59,7 +59,7 @@ if ($ImportLibrary) {
         # In strict security mode, only load from the already pre-compiled binary within the module
         if ($script:strictSecurityMode) {
             if (Test-Path -Path $dll) {
-                Add-Type -Path $dll -ErrorAction Stop
+                Add-TypeFast -Path $dll -ErrorAction Stop
             } else {
                 throw "Library not found, terminating"
             }
@@ -68,7 +68,7 @@ if ($ImportLibrary) {
         else {
             try {
                 if ((Test-Path -Path "$libraryBase/projects/dbatools/dbatools.sln")) {
-                    $sln = (Resolve-Path -Path "$libraryBase\projects\dbatools\dbatools.sln" -ErrorAction Stop)
+                    $sln = (Resolve-PathFast -Path "$libraryBase\projects\dbatools\dbatools.sln" -ErrorAction Stop)
                     $hasProject = Test-Path -Path $sln -ErrorAction Stop
                 }
             } catch {
@@ -86,15 +86,15 @@ if ($ImportLibrary) {
 
                 try {
                     Write-Verbose -Message "Found library, trying to copy & import"
-                    Add-Type -Path (Resolve-Path -Path "$dll") -ErrorAction Stop
+                    Add-TypeFast -Path (Resolve-PathFast -Path "$dll") -ErrorAction Stop
                 } catch {
                     Write-Verbose -Message "Failed to copy and import, attempting to import straight from the module directory"
-                    $script:DllRoot = Resolve-Path -Path $script:DllRoot
-                    Add-Type -Path "$(Join-Path -Path $script:DllRoot -ChildPath dbatools.dll)" -ErrorAction Stop
+                    $script:DllRoot = Resolve-PathFast -Path $script:DllRoot
+                    Add-TypeFast -Path "$(Join-Path -Path $script:DllRoot -ChildPath dbatools.dll)" -ErrorAction Stop
                 }
                 Write-Verbose -Message "Total duration: $((Get-Date) - $start)"
             } elseif ($hasProject) {
-                . Import-ModuleFile (Resolve-Path -Path "$($script:PSModuleRoot)\bin\build-project.ps1")
+                . Import-ModuleFile (Resolve-PathFast -Path "$($script:PSModuleRoot)\bin\build-project.ps1")
             } else {
                 throw "No valid dbatools library found! Check your module integrity"
             }

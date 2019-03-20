@@ -15,12 +15,12 @@ $scriptBlock = {
             [bool]$DoCopy,
             [string]$Name
         )
-        $DllRoot = (Resolve-Path -Path $DllRoot)
+        $DllRoot = (Resolve-PathFast -Path $DllRoot)
 
         if (-not $DoCopy) {
             return
         }
-        if ((Resolve-Path -Path "$ModuleRoot\bin\smo") -eq $DllRoot) {
+        if ((Resolve-PathFast -Path "$ModuleRoot\bin\smo") -eq $DllRoot) {
             return
         }
 
@@ -28,7 +28,7 @@ $scriptBlock = {
             $null = New-Item -Path $DllRoot -ItemType Directory -ErrorAction Ignore
         }
 
-        Copy-Item -Path (Resolve-Path -Path "$ModuleRoot\bin\smo\$Name.dll") -Destination $DllRoot
+        Copy-Item -Path (Resolve-PathFast -Path "$ModuleRoot\bin\smo\$Name.dll") -Destination $DllRoot
     }
 
     #region Names
@@ -136,16 +136,16 @@ $scriptBlock = {
     }
     if ($PSVersionTable.PSEdition -eq "Core") {
         foreach ($name in $names) {
-            Add-Type -Path (Resolve-Path -Path "$DllRoot\coreclr\$name.dll")
+            Add-TypeFast -Path (Resolve-PathFast -Path "$DllRoot\coreclr\$name.dll")
         }
     } else {
         foreach ($name in $names) {
-            Add-Type -Path (Resolve-Path -Path "$DllRoot\$name.dll")
+            Add-TypeFast -Path (Resolve-PathFast -Path "$DllRoot\$name.dll")
         }
     }
 }
 
-$smo = (Resolve-Path -Path "$script:DllRoot\smo")
+$smo = (Resolve-PathFast -Path "$script:DllRoot\smo")
 
 if ($script:serialImport) {
     $scriptBlock.Invoke($script:PSModuleRoot, "$script:DllRoot\smo", $script:copyDllMode)

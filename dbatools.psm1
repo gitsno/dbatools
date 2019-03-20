@@ -1,4 +1,4 @@
-$start = Get-Date
+$start = [DateTime]::Now
 
 if (($PSVersionTable.PSVersion.Major -lt 6) -or ($PSVersionTable.Keys -contains "Platform" -and $PSVersionTable.Platform -eq "Win32NT")) {
     $script:isWindows = $true
@@ -60,7 +60,7 @@ function Write-ImportTime {
     [CmdletBinding()]
     param (
         [string]$Text,
-        $Timestamp = (Get-Date)
+        $Timestamp = ([DateTime]::Now)
     )
 
     if ($dbatools_disableTimeMeasurements) { return }
@@ -68,7 +68,7 @@ function Write-ImportTime {
     if (-not $script:dbatools_ImportPerformance) { $script:dbatools_ImportPerformance = @() }
 
     if (([System.Management.Automation.PSTypeName]'Sqlcollaborative.Dbatools.Configuration.Config').Type -eq $null) {
-        $script:dbatools_ImportPerformance += New-Object PSObject -Property @{ Time = $timestamp; Action = $Text }
+        $script:dbatools_ImportPerformance += [pscustomobject]@{ Time = $timestamp; Action = $Text }
     } else {
         if ([Sqlcollaborative.Dbatools.dbaSystem.DebugHost]::ImportTimeEntries.Count -eq 0) {
             foreach ($entry in $script:dbatools_ImportPerformance) { [Sqlcollaborative.Dbatools.dbaSystem.DebugHost]::ImportTimeEntries.Add((New-Object Sqlcollaborative.Dbatools.dbaSystem.StartTimeEntry($entry.Action, $entry.Time, ([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.InstanceId)))) }
@@ -76,6 +76,17 @@ function Write-ImportTime {
 
         [Sqlcollaborative.Dbatools.dbaSystem.DebugHost]::ImportTimeEntries.Add((New-Object Sqlcollaborative.Dbatools.dbaSystem.StartTimeEntry($Text, $timestamp, ([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.InstanceId))))
     }
+}
+
+function Add-TypeFast {
+    [cmdletbinding()]
+    param($Path)
+    [Reflection.Assembly]::LoadFrom($Path)
+}
+function Resolve-PathFast {
+    [cmdletbinding()]
+    param($Path)
+    $ExecutionContext.SessionState.Path.GetResolvedPSPathFromPSPath($Path)
 }
 
 Write-ImportTime -Text "Start" -Timestamp $start
