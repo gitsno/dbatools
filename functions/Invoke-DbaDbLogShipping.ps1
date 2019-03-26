@@ -1313,7 +1313,7 @@ function Invoke-DbaDbLogShipping {
                             if ((Test-DbaPath -Path $FullBackupPath -SqlInstance $destInstance -SqlCredential $DestinationCredential) -ne $true) {
                                 $setupResult = "Failed"
                                 $comment = "The path to the full backup could not be reached"
-                                Stop-Function -Message ("The path to the full backup could not be reached. Check the path and/or the crdential") -ErrorRecord $_ -Target $destInstance -Continue
+                                Stop-Function -Message ("The path to the full backup could not be reached. Check the path and/or the credential") -ErrorRecord $_ -Target $destInstance -Continue
                             }
 
                             $BackupPath = $FullBackupPath
@@ -1322,7 +1322,7 @@ function Invoke-DbaDbLogShipping {
                             if ((Test-DbaPath -Path $UseBackupFolder -SqlInstance $destInstance -SqlCredential $DestinationCredential) -ne $true) {
                                 $setupResult = "Failed"
                                 $comment = "The path to the backup folder could not be reached"
-                                Stop-Function -Message ("The path to the backup folder could not be reached. Check the path and/or the crdential") -ErrorRecord $_ -Target $destInstance -Continue
+                                Stop-Function -Message ("The path to the backup folder could not be reached. Check the path and/or the credential") -ErrorRecord $_ -Target $destInstance -Continue
                             }
 
                             $BackupPath = $UseBackupFolder
