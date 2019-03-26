@@ -115,6 +115,12 @@ function Invoke-DbaDbLogShipping {
     .PARAMETER CompressBackup
         Do the backups need to be compressed. By default the backups are not compressed.
 
+    .PARAMETER CopySourceFolder
+        The path to copy the transaction log backup files from. This is the root directory.
+        If the secondary does not simply use the same UNC path as the primary (if the secondary is running on Linux for example)
+        then this path allows setting a different path for use on the secondary.
+        A directory with the name of the database will be created in this path.
+
     .PARAMETER CopyDestinationFolder
         The path to copy the transaction log backup files to. This is the root directory.
         A directory with the name of the database will be created in this path.
@@ -359,6 +365,7 @@ function Invoke-DbaDbLogShipping {
         >> RestoreScheduleFrequencyType = 'daily'
         >> RestoreScheduleFrequencyInterval = 1
         >> SecondaryDatabaseSuffix = 'DR'
+        >> CopySourceFolder = '\\sql1\logshipping'
         >> CopyDestinationFolder = '\\sql2\logshippingdest'
         >> Force = $true
         >> }
@@ -452,6 +459,8 @@ function Invoke-DbaDbLogShipping {
         [int]$BackupThreshold,
 
         [switch]$CompressBackup,
+
+        [string]$CopySourceFolder,
 
         [string]$CopyDestinationFolder,
 
@@ -1132,7 +1141,7 @@ function Invoke-DbaDbLogShipping {
                 if ($setupResult -ne 'Failed') {
                     Write-Message -Message "Testing database backup network path $DatabaseBackupNetworkPath" -Level Verbose
                     if ((Test-DbaPath -Path $DatabaseBackupNetworkPath -SqlInstance $SourceSqlInstance -SqlCredential $SourceCredential) -ne $true) {
-                        # To to create the backup directory for the database
+                        # Try to create the backup directory for the database
                         try {
                             Write-Message -Message "Database backup network path $DatabaseBackupNetworkPath not found. Trying to create it.." -Level Verbose
 
@@ -1147,6 +1156,26 @@ function Invoke-DbaDbLogShipping {
                             Stop-Function -Message "Something went wrong creating the backup directory" -ErrorRecord $_ -Target $SourceSqlInstance -Continue
                         }
                     }
+                }
+
+                # Check the copy source
+                if ($CopySourceFolder) {
+                    # Checking if the copy source folder exists
+                    if ($setupResult -ne 'Failed') {
+                        Write-Message -Message "Testing copy source folder $CopySourceFolder" -Level Verbose
+                        if ((Test-DbaPath -Path $CopySourceFolder -SqlInstance $destInstance -SqlCredential $DestinationCredential) -ne $true) {
+                            if ($PSCmdlet.ShouldProcess($DestinationServerName, "Testing copy source path on $DestinationServerName")) {
+                                # If it does not exist just stop, can't try to create it, it is created for the backup
+                                $setupResult = "Failed"
+                                $comment = "The copy source folder is not available"
+
+                                Stop-Function -Message "The copy source folder is not available" -ErrorRecord $_ -Target $destInstance -Continue
+                            }
+                        }
+                    }
+                } else {
+                    # Not specified so use the $DatabaseBackupNetworkPath
+                    $CopySourceFolder = $BackupNetworkPath
                 }
 
                 # Check if the backup job name is set
@@ -1328,6 +1357,10 @@ function Invoke-DbaDbLogShipping {
                     }
                 }
 
+                # Set the copy source folder to include the database name
+                $DatabaseCopySourceFolder = [System.IO.Path]::Combine($CopySourceFolder, $db.Name)
+                Write-Message -Message "Copy source folder set to $DatabaseCopySourceFolder." -Level Verbose
+
                 # Set the copy destination folder to include the database name
                 $DatabaseCopyDestinationFolder = [System.IO.Path]::Combine($CopyDestinationFolder, $db.Name)
                 Write-Message -Message "Copy destination folder set to $DatabaseCopyDestinationFolder." -Level Verbose
@@ -1348,7 +1381,21 @@ function Invoke-DbaDbLogShipping {
                     Write-Message -Message "Copy job schedule name set to $DatabaseCopySchedule" -Level Verbose
                 }
 
-                # Check if the copy destination folder exists
+                # Check if the database copy source folder exists
+                if ($setupResult -ne 'Failed') {
+                    Write-Message -Message "Testing database copy source path $DatabaseCopySourceFolder" -Level Verbose
+                    if ((Test-DbaPath -Path $DatabaseCopySourceFolder -SqlInstance $destInstance -SqlCredential $DestinationCredential) -ne $true) {
+                        if ($PSCmdlet.ShouldProcess($DestinationServerName, "Testing database copy source path on $DestinationServerName")) {
+                            # If it does not exist just stop, can't try to create it, it is created for the backup
+                            $setupResult = "Failed"
+                            $comment = "The copy source folder is not available"
+
+                            Stop-Function -Message "The copy source folder is not available" -ErrorRecord $_ -Target $destInstance -Continue
+                        }
+                    }
+                }
+
+                # Check if the database copy destination folder exists
                 if ($setupResult -ne 'Failed') {
                     Write-Message -Message "Testing database copy destination path $DatabaseCopyDestinationFolder" -Level Verbose
                     if ((Test-DbaPath -Path $DatabaseCopyDestinationFolder -SqlInstance $destInstance -SqlCredential $DestinationCredential) -ne $true) {
@@ -1393,11 +1440,12 @@ function Invoke-DbaDbLogShipping {
 
                             try {
                                 $Timestamp = Get-Date -format "yyyyMMddHHmmss"
+                                $BackupFileName = "FullBackup_$($db.Name)_PreLogShipping_$Timestamp.bak"
 
                                 $LastBackup = Backup-DbaDatabase -SqlInstance $SourceSqlInstance `
                                     -SqlCredential $SourceSqlCredential `
                                     -BackupDirectory $DatabaseBackupNetworkPath `
-                                    -BackupFileName "FullBackup_$($db.Name)_PreLogShipping_$Timestamp.bak" `
+                                    -BackupFileName $BackupFileName `
                                     -Databases $($db.Name) `
                                     -Type Full
 
@@ -1405,6 +1453,7 @@ function Invoke-DbaDbLogShipping {
 
                                 # Get the last full backup path
                                 $BackupPath = $LastBackup.BackupPath
+                                $DatabaseCopySourcePath = [System.IO.Path]::Combine($DatabaseCopySourceFolder, $BackupFileName)
 
                                 Write-Message -Message "Backup is located at $BackupPath" -Level Verbose
                             } catch {
@@ -1484,7 +1533,7 @@ function Invoke-DbaDbLogShipping {
                                     if ($Force) {
                                         $null = Restore-DbaDatabase -SqlInstance $destInstance `
                                             -SqlCredential $DestinationSqlCredential `
-                                            -Path $BackupPath `
+                                            -Path $DatabaseCopySourcePath `
                                             -DestinationFilePrefix $SecondaryDatabasePrefix `
                                             -DestinationFileSuffix $SecondaryDatabaseSuffix `
                                             -DestinationDataDirectory $DatabaseRestoreDataFolder `
@@ -1496,7 +1545,7 @@ function Invoke-DbaDbLogShipping {
                                     } else {
                                         $null = Restore-DbaDatabase -SqlInstance $destInstance `
                                             -SqlCredential $DestinationSqlCredential `
-                                            -Path $BackupPath `
+                                            -Path $DatabaseCopySourcePath `
                                             -DestinationFilePrefix $SecondaryDatabasePrefix `
                                             -DestinationFileSuffix $SecondaryDatabaseSuffix `
                                             -DestinationDataDirectory $DatabaseRestoreDataFolder `
@@ -1516,7 +1565,7 @@ function Invoke-DbaDbLogShipping {
                                     if ($DestinationSqlCredential) {
                                         $null = Restore-DbaDatabase -SqlInstance $destInstance `
                                             -SqlCredential $DestinationSqlCredential `
-                                            -Path $BackupPath `
+                                            -Path $DatabaseCopySourcePath `
                                             -DestinationFilePrefix $SecondaryDatabasePrefix `
                                             -DestinationFileSuffix $SecondaryDatabaseSuffix `
                                             -DestinationDataDirectory $DatabaseRestoreDataFolder `
@@ -1526,7 +1575,7 @@ function Invoke-DbaDbLogShipping {
                                             -StandbyDirectory $StandbyDirectory
                                     } else {
                                         $null = Restore-DbaDatabase -SqlInstance $destInstance `
-                                            -Path $BackupPath `
+                                            -Path $DatabaseCopySourcePath `
                                             -DestinationFilePrefix $SecondaryDatabasePrefix `
                                             -DestinationFileSuffix $SecondaryDatabaseSuffix `
                                             -DestinationDataDirectory $DatabaseRestoreDataFolder `
@@ -1626,7 +1675,7 @@ function Invoke-DbaDbLogShipping {
 
                             New-DbaLogShippingSecondaryPrimary -SqlInstance $destInstance `
                                 -SqlCredential $DestinationSqlCredential `
-                                -BackupSourceDirectory $DatabaseBackupNetworkPath `
+                                -BackupSourceDirectory $DatabaseCopySourceFolder `
                                 -BackupDestinationDirectory $DatabaseCopyDestinationFolder `
                                 -CopyJob $DatabaseCopyJob `
                                 -FileRetentionPeriod $BackupRetention `
