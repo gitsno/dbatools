@@ -1116,29 +1116,15 @@ function Invoke-DbaDbLogShipping {
                 }
 
                 # Check the local backup path
-                if ($BackupLocalPath) {
-                    if ($BackupLocalPath.EndsWith("\")) {
-                        $DatabaseBackupLocalPath = "$BackupLocalPath$($db.Name)"
-                    } else {
-                        $DatabaseBackupLocalPath = "$BackupLocalPath\$($db.Name)"
-                    }
-                } else {
+                if (-not $BackupLocalPath) {
                     $BackupLocalPath = $BackupNetworkPath
-
-                    if ($BackupLocalPath.EndsWith("\")) {
-                        $DatabaseBackupLocalPath = "$BackupLocalPath$($db.Name)"
-                    } else {
-                        $DatabaseBackupLocalPath = "$BackupLocalPath\$($db.Name)"
-                    }
                 }
+                $DatabaseBackupLocalPath = [System.IO.Path]::Combine($BackupLocalPath, $db.Name)
+
                 Write-Message -Message "Backup local path set to $DatabaseBackupLocalPath." -Level Verbose
 
                 # Setting the backup network path for the database
-                if ($BackupNetworkPath.EndsWith("\")) {
-                    $DatabaseBackupNetworkPath = "$BackupNetworkPath$($db.Name)"
-                } else {
-                    $DatabaseBackupNetworkPath = "$BackupNetworkPath\$($db.Name)"
-                }
+                $DatabaseBackupNetworkPath = [System.IO.Path]::Combine($BackupNetworkPath, $db.Name)
                 Write-Message -Message "Backup network path set to $DatabaseBackupNetworkPath." -Level Verbose
 
 
@@ -1239,11 +1225,7 @@ function Invoke-DbaDbLogShipping {
                                 $DatabaseRestoreDataFolder = $DestinationServer.DefaultFile
                             } else {
                                 # Set the restore data folder
-                                if ($RestoreDataFolder.EndsWith("\")) {
-                                    $DatabaseRestoreDataFolder = "$RestoreDataFolder$($db.Name)"
-                                } else {
-                                    $DatabaseRestoreDataFolder = "$RestoreDataFolder\$($db.Name)"
-                                }
+                                $DatabaseRestoreDataFolder = [System.IO.Path]::Combine($RestoreDataFolder, $db.Name)
                             }
 
                             Write-Message -Message "Restore data folder set to $DatabaseRestoreDataFolder" -Level Verbose
@@ -1347,11 +1329,7 @@ function Invoke-DbaDbLogShipping {
                 }
 
                 # Set the copy destination folder to include the database name
-                if ($CopyDestinationFolder.EndsWith("\")) {
-                    $DatabaseCopyDestinationFolder = "$CopyDestinationFolder$($db.Name)"
-                } else {
-                    $DatabaseCopyDestinationFolder = "$CopyDestinationFolder\$($db.Name)"
-                }
+                $DatabaseCopyDestinationFolder = [System.IO.Path]::Combine($CopyDestinationFolder, $db.Name)
                 Write-Message -Message "Copy destination folder set to $DatabaseCopyDestinationFolder." -Level Verbose
 
                 # Check if the copy job name is set
