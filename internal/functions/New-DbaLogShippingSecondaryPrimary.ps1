@@ -126,6 +126,9 @@ function New-DbaLogShippingSecondaryPrimary {
         Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $PrimaryServer -Continue
     }
 
+    <#
+    # Temporarily removing this check as it is probably not valid, and is definitely not correct if the secondary is a Linux instance
+
     # Check if the backup UNC path is correct and reachable
     if ([bool]([uri]$BackupDestinationDirectory).IsUnc -and $BackupDestinationDirectory -notmatch '^\\(?:\\[^<>:`"/\\|?*]+)+$') {
         Stop-Function -Message "The backup destination path should be formatted in the form \\server\share." -Target $SqlInstance
@@ -136,6 +139,7 @@ function New-DbaLogShippingSecondaryPrimary {
             return
         }
     }
+    #>
 
     # Check the MonitorServer
     if (-not $MonitorServer -and $Force) {
